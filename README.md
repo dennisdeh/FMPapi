@@ -4,29 +4,35 @@ This little API makes it easy to fetch data for stocks, ETFs, currencies, indexe
 Time series are stored as pandas DataFrames.
 
 The following methods are available:
-- general_request
-- get_income_statements (fundamentals)
-- get_balance_sheet_statements (fundamentals)
-- get_cash_flow_statements (fundamentals)
-- get_stock_info (fundamentals)
-- get_prices_history_daily (fundamentals)
-- get_stock_split_history (fundamentals)
-- get_financial_ratios (analyses)
-- get_enterprise_value (analyses)
-- get_key_metrics (analyses)
-- get_fmp_company_rating (analyses)
-- get_discounted_cashflow (analyses)
-- get_ESG_scores (analyses)
-- get_ESG_risk_rating (analyses)
-- get_upgrades_downgrades (analyses)
-- get_historical_insider_trade_symbol
-- get_all_data
-- get_financial_indicators_US (macroeconomic data)
-- get_housing_indicators_US (macroeconomic data)
-- get_market_index_symbols (symbols)
-- get_symbol (symbols)
-- get_random_symbol (symbols)
-- get_symbols_per_sector (symbols)
+- Basic methods:
+  - general_request
+  - get_all_data
+- Fundamentals:
+  - get_income_statements
+  - get_balance_sheet_statements 
+  - get_cash_flow_statements
+  - get_stock_info
+  - get_prices_history_daily
+  - get_stock_split_history
+- Analyses:
+  - get_financial_ratios (analyses)
+  - get_enterprise_value (analyses)
+  - get_key_metrics (analyses)
+  - get_fmp_company_rating (analyses)
+  - get_discounted_cashflow (analyses)
+  - get_ESG_scores (analyses)
+  - get_ESG_risk_rating (analyses)
+  - get_upgrades_downgrades (analyses)
+- Symbols:
+  - get_market_index_symbols
+  - get_symbol
+  - get_random_symbol
+  - get_symbols_per_sector
+- Macroeconomic data:
+  - get_financial_indicators_US
+  - get_housing_indicators_US
+- Miscellaneous:
+  - get_historical_insider_trade_symbol
 
 An API key through a paid plan for FMP is needed to benefit maximally.
 
