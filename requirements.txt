@@ -1,0 +1,4 @@
+urllib3>=2.1.0
+pandas>=2.2.0
+xmltodict>=0.13.0
+requests>=2.31.0
