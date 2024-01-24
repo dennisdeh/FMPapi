@@ -15,15 +15,14 @@ The following methods are available:
   - get_prices_history_daily
   - get_stock_split_history
 - Analyses:
-  - get_financial_ratios (analyses)
-  - get_enterprise_value (analyses)
-  - get_key_metrics (analyses)
-  - get_fmp_company_rating (analyses)
-  - get_discounted_cashflow (analyses)
-  - get_ESG_scores (analyses)
-  - get_ESG_risk_rating (analyses)
-  - get_upgrades_downgrades (analyses)
-- Symbols:
+  - get_financial_ratios
+  - get_enterprise_value
+  - get_key_metrics
+  - get_fmp_company_rating
+  - get_discounted_cashflow
+  - get_ESG_scores
+  - get_ESG_risk_rating
+- Random symbols, market indices and ETF symbols:
   - get_market_index_symbols
   - get_symbol
   - get_random_symbol
@@ -32,6 +31,7 @@ The following methods are available:
   - get_financial_indicators_US
   - get_housing_indicators_US
 - Miscellaneous:
+  - get_upgrades_downgrades
   - get_historical_insider_trade_symbol
 
 An API key through a paid plan for FMP is needed to benefit maximally.
