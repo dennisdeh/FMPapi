@@ -918,7 +918,7 @@ class FMP:
             for d in list_metadata:
                 symbols.append(d["symbol"])
         else:
-            raise ValueError("Invalid input for marketCap")
+            raise ValueError("Invalid input for search_parameters")
 
         return symbols
 
