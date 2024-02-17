@@ -7,8 +7,8 @@ import random
 import os
 import requests
 import time
-from urllib.error import URLError
-from http.client import RemoteDisconnected
+from urllib.error import URLError, HTTPError
+from http.client import RemoteDisconnected, IncompleteRead
 
 
 class FMP:
@@ -110,7 +110,7 @@ class FMP:
                 time.sleep(self.time_wait_query)
                 response = urlopen(url)
                 break  # if succeeded, break the loop
-            except URLError or RemoteDisconnected:
+            except (URLError, RemoteDisconnected, HTTPError, IncompleteRead):
                 if not self.silent:
                     print(f"FMP: Trying downloading again (trial {n})... ")
                 n += 1
