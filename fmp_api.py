@@ -9,16 +9,18 @@ import datetime
 from celery.result import AsyncResult
 from urllib.error import URLError, HTTPError
 from http.client import RemoteDisconnected, IncompleteRead
-from modules.p00_task_queueing.celery_json.tasks import app as celery_app
 from sqlpluspython.utils.paths import get_project_path
 import sqlpluspython.utils.lists as lists
-import sqlpluspython.utils.dictionaries as dicts
+import utils.dictionaries as dicts
 import sqlpluspython.db_connection as db
-import modules.p00_task_queueing.celery_connection as cc
+import celerypluspython.celery_connection as cc  # install from https://github.com/dennisdeh/CeleryplusPython
 from sqlalchemy import Engine, text
 from rich.progress import Progress
 
 pd.set_option("future.no_silent_downcasting", True)
+
+# celery_app and its tasks must be specified and imported
+celery_app = None
 
 class RequestError(Exception):
     pass
@@ -128,32 +130,32 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
         self.flag_celery_workers_running = False
         # Data
         self.fmp_free_account = fmp_free_account
-        self.api_address = "https://financialmodelingprep.com/api"
+        self.api_address = "https://financialmodelingprep.com/stable"
         self.symbol_col = "symbol"
         self.date_col = "date"
         self.current_year = datetime.date.today().year
         self.current_quarter = (datetime.date.today().month - 1) // 3
         self.series_symbols = {
-            "Prices": "v3/historical-price-full",
-            "Meta data": "v3/profile",
+            "Prices": "historical-price-eod/full",
+            "Meta data": "profile",
         }
         if not self.fmp_free_account:
             self.series_symbols.update(
                 {
-                    "Income": "v3/income-statement",
-                    "Balance": "v3/balance-sheet-statement",
-                    "Cash flow": "v3/cash-flow-statement",
-                    "Financial ratios": "v3/ratios",
-                    "Enterprise value": "v3/enterprise-values",
-                    "FMP rating": "v3/historical-rating",
-                    "Key metrics": "v3/key-metrics",
+                    "Income": "income-statement",
+                    "Balance": "balance-sheet-statement",
+                    "Cash flow": "cash-flow-statement",
+                    "Financial ratios": "ratios",
+                    "Enterprise value": "enterprise-values",
+                    "FMP rating": "historical-rating",
+                    "Key metrics": "key-metrics",
                 }
             )
         self.number_of_sheets = len(self.series_symbols)
         self.provided_sheets = list(self.series_symbols.keys())
         self.mandatory_sheets = ["Prices", "Meta data"]
         self.key_ei_us = "FMP-EI-US"
-        self.series_macro = {self.key_ei_us: "v4/economic", "Treasury": "v4/treasury"}
+        self.series_macro = {self.key_ei_us: "economic", "Treasury": "treasury"}
         self.start_celery = start_celery
         self.path_db_env = path_db_env
         self.worker_processes = None
@@ -776,7 +778,7 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
         date_start: Union[str, None, bool] = None,
         freq_type: Union[str or None] = "auto",
         additional_string: str = "",
-        date_liaison: str = "?",
+        date_liaison: str = "&",
     ):
         """
         Helper function to get data from the correct starting date, and
@@ -791,7 +793,7 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
         date_start = self.helper_start_date(date_start=date_start)
         # 0.2: parse symbol string
         if isinstance(symbol, str):
-            str_symbol = f"/{symbol}"
+            str_symbol = f"/?symbol={symbol}"
         elif symbol is None:
             str_symbol = ""
         else:
@@ -800,27 +802,45 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
         # 1: format url and send request
         if freq_type is None:
             if not date_start:
-                url = f"{self.api_address}/{series}{str_symbol}?{additional_string}apikey={self.key}"
+                if str_symbol == "":
+                    url = f"{self.api_address}/{series}{str_symbol}?{additional_string}apikey={self.key}"
+                else:
+                    url = f"{self.api_address}/{series}{str_symbol}&{additional_string}apikey={self.key}"
             else:
-                url = f"{self.api_address}/{series}{str_symbol}{date_liaison}from={date_start}{additional_string}&apikey={self.key}"
+                if str_symbol == "":
+                    url = f"{self.api_address}/{series}{str_symbol}{date_liaison}from={date_start}{additional_string}&apikey={self.key}"
+                else:
+                    url = f"{self.api_address}/{series}{str_symbol}&from={date_start}{additional_string}&apikey={self.key}"
         elif freq_type == "auto":
             limit_annual = self.current_year - int(date_start[0:4])
             limit_quarter = 4 * limit_annual + self.current_quarter
             # try first with quarterly data (return if successful), otherwise format a string with an annual period
             try:
-                url = f"{self.api_address}/{series}{str_symbol}?period=quarter&limit={limit_quarter}{additional_string}&apikey={self.key}"
+                if str_symbol == "":
+                    url = f"{self.api_address}/{series}{str_symbol}?period=quarter&limit={limit_quarter}{additional_string}&apikey={self.key}"
+                else:
+                    url = f"{self.api_address}/{series}{str_symbol}&period=quarter&limit={limit_quarter}{additional_string}&apikey={self.key}"
                 data = self.get_json_parsed_data(url)
                 return data
             except RequestError:
-                url = f"{self.api_address}/{series}{str_symbol}?period=annual&limit={limit_annual}{additional_string}&apikey={self.key}"
+                if str_symbol == "":
+                    url = f"{self.api_address}/{series}{str_symbol}?period=annual&limit={limit_annual}{additional_string}&apikey={self.key}"
+                else:
+                    url = f"{self.api_address}/{series}{str_symbol}&period=annual&limit={limit_annual}{additional_string}&apikey={self.key}"
         elif freq_type == "quarterly":
             limit_quarter = (
                 4 * (self.current_year - int(date_start[0:4])) + self.current_quarter
             )
-            url = f"{self.api_address}/{series}{str_symbol}?period=quarter&limit={limit_quarter}{additional_string}&apikey={self.key}"
+            if str_symbol == "":
+                url = f"{self.api_address}/{series}{str_symbol}?period=quarter&limit={limit_quarter}{additional_string}&apikey={self.key}"
+            else:
+                url = f"{self.api_address}/{series}{str_symbol}&period=quarter&limit={limit_quarter}{additional_string}&apikey={self.key}"
         elif freq_type == "annually":
             limit_annual = self.current_year - int(date_start[0:4])
-            url = f"{self.api_address}/{series}{str_symbol}?period=annual&limit={limit_annual}&apikey={self.key}"
+            if str_symbol == "":
+                url = f"{self.api_address}/{series}{str_symbol}?period=annual&limit={limit_annual}&apikey={self.key}"
+            else:
+                url = f"{self.api_address}/{series}{str_symbol}&period=annual&limit={limit_annual}&apikey={self.key}"
         else:
             raise ValueError("Invalid input for freq_type")
 
@@ -851,7 +871,7 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
         else:
             try:
                 if sheet == "Prices":
-                    out = pd.DataFrame(data["historical"])
+                    out = pd.DataFrame(data)
                     out[self.date_col] = pd.to_datetime(
                         out[self.date_col], format="%Y-%m-%d"
                     )
@@ -1321,7 +1341,6 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
             print(f"Fetching historical daily prices for {symbol}")
 
         # 1: prepare potential new string for end date
-        # e.g. v3/historical-price-full/AAPL?from=2011-03-12&to=2019-03-12
         if date_end is None:
             date_str = ""
         else:
@@ -1376,7 +1395,7 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
 
         # 2: send request
         data = self.helper_data_auto_period(
-            series="v3/historical-price-full/stock_split",
+            series="splits",
             symbol=symbol,
             date_start=date_start,
             freq_type=None,
@@ -1827,30 +1846,13 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
         # 1: get dictionary of market indices
         # S&P500
         if market_index == "sp500":
-            mi_dict = self.general_request("/v3/sp500_constituent", api_key_liaison="?")
+            mi_dict = self.general_request("/sp500-constituent", api_key_liaison="?")
         # Nasdaq100
         elif market_index == "nasdaq100":
-            mi_dict = self.general_request(
-                "/v3/nasdaq_constituent", api_key_liaison="?"
-            )
+            mi_dict = self.general_request("/nasdaq-constituent", api_key_liaison="?")
         # Dow Jones
         elif market_index == "dj":
-            mi_dict = self.general_request(
-                "/v3/dowjones_constituent", api_key_liaison="?"
-            )
-        # EuroNext
-        elif market_index == "euronext":
-            mi_dict = self.general_request(
-                "/v3/symbol/available-euronext", api_key_liaison="?"
-            )
-        # TSX
-        elif market_index == "tsx":
-            mi_dict = self.general_request(
-                "/v3/symbol/available-tsx", api_key_liaison="?"
-            )
-        # ETFs
-        elif market_index == "ETFs":
-            mi_dict = self.general_request("/v3/etf/list", api_key_liaison="?")
+            mi_dict = self.general_request("/dowjones-constituent", api_key_liaison="?")
         else:
             raise ValueError("Invalid market_index")
 
@@ -1962,7 +1964,7 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
 
         # step 2: get a list of symbols with financial statements on FMP
         list_symbols = self.general_request(
-            message="v3/financial-statement-symbol-lists", api_key_liaison="?"
+            message="financial-statement-symbol-lists", api_key_liaison="?"
         )
 
         return random.sample(list_symbols, k=n)
@@ -2144,9 +2146,9 @@ class FMP:  # (metaclass=ExceptionHandlerMeta):
 if __name__ == "__main__2":
     # Base object from FMP class
     fmp = FMP(silent=False, task_queuing="legacy")
+    df1 = fmp.get_prices_history_daily(symbol="AAPL")  # all available data
     # fmp = FMP(silent=False, task_queuing="celery_wait", start_celery=True)
     # fmp = FMP(silent=False, task_queuing="celery_submit", start_celery=True)
-    fmp.celery_app_initialise()
     fmp.celery_workers_start()
     fmp.celery_workers_running()
     fmp.celery_workers_stop()
@@ -2155,11 +2157,8 @@ if __name__ == "__main__2":
     # ----------------------------------------------------------------------------- #
     # general request
     req1 = fmp.general_request(
-        "/v3/historical-price-full/MSFT?from=2000-03-12"
+        "/historical-price-eod/full?symbol=MSFT&from=2000-03-12"
     )  # working
-    fmp.general_request(
-        "/v4/financial-reports-json?symbol=ALO.PA&year=2020&period=Q1"
-    )  # not working example
     # all data available for the symbol
     fmp.date_start = "2010-06-01"
     dict_data1 = fmp.get_all_symbol_data(symbol="MSFT", sheets=["FMP ratings"])
